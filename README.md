@@ -15,6 +15,10 @@ HTTP request to https://updates.backdropcms.org/release-history/...
 failed with error: Error opening socket ssl://updates.backdropcms.org:443.
 ```
 
+On the "Available updates" page you may also see a message like "Failed to
+get available update data for XX projects." And the module status icons are
+just grey with a question mark.
+
 If that's the case on your site, install this module and things should be
 fixed.
 
