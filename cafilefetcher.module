@@ -41,17 +41,8 @@ function cafilefetcher_init() {
 function cafilefetcher_form($form, &$form_state) {
   $form = array();
 
-  $timestamp = state_get('cafilefetcher_checked');
-  $date = t('never');
-  if ($timestamp) {
-    $date = format_date($timestamp);
-  }
-  $file = 'public://cafilefetcher/cacert.pem';
-  $message = t('Last time the file has been checked or updated: @date', array(
-    '@date' => $date,
-  ));
-
   $status = '';
+  $file = 'public://cafilefetcher/cacert.pem';
   $readable = is_readable($file);
   $filesize = filesize($file);
   if ($readable && $filesize > 100000) {
@@ -61,9 +52,24 @@ function cafilefetcher_form($form, &$form_state) {
     backdrop_set_message(t('The cacert.pem file does not exist or is not readable.'), 'error');
   }
 
+  $timestamp = state_get('cafilefetcher_checked');
+  $date = t('never');
+  if ($timestamp) {
+    $date = format_date($timestamp);
+  }
+  $message = t('Last time the file has been checked or updated: @date', array(
+    '@date' => $date,
+  ));
+
   $form['report'] = array(
     '#type' => 'markup',
-    '#markup' => '<div>' . $message . $status . '</div>',
+    '#markup' => '<div>' . $status . $message . '</div>',
+  );
+  $form['help'] = array(
+    '#type' => 'markup',
+    '#markup' => '<p>' . t('The file does not change very often, see the revision on the source page on <a href="!link">curl.se</a>.', array(
+      '!link' => 'https://curl.se/docs/caextract.html',
+    )) . '</p>',
   );
   $form['actions']['submit'] = array(
     '#type' => 'submit',
