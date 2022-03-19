@@ -1,0 +1,134 @@
+<?php
+/**
+ * @file
+ * CAFile Fetcher module main code.
+ */
+
+/**
+ * Implements hook_menu().
+ */
+function cafilefetcher_menu() {
+  $items['admin/config/system/cafile'] = array(
+    'title' => 'CAFile Fetcher',
+    'page callback' => 'backdrop_get_form',
+    'page arguments' => array('cafilefetcher_form'),
+    'access arguments' => array('administer site configuration'),
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_init().
+ */
+function cafilefetcher_init() {
+  $cafile = backdrop_realpath('public://cafilefetcher/cacert.pem');
+  if (!is_readable($cafile)) {
+    return;
+  }
+  $options = array(
+    'ssl' => array(
+      'cafile' => $cafile,
+    ),
+  );
+  // Set the default stream context which will be used whenever connections are
+  // opened (also backdrop_http_request) *without* a context parameter.
+  stream_context_set_default($options);
+}
+
+/**
+ * Form callback.
+ */
+function cafilefetcher_form($form, &$form_state) {
+  $form = array();
+
+  $timestamp = state_get('cafilefetcher_checked');
+  $date = t('never');
+  if ($timestamp) {
+    $date = format_date($timestamp);
+  }
+  $file = 'public://cafilefetcher/cacert.pem';
+  $message = t('Last time the file has been checked or updated: @date', array(
+    '@date' => $date,
+  ));
+
+  $status = '';
+  $readable = is_readable($file);
+  $filesize = filesize($file);
+  if ($readable && $filesize > 100000) {
+    $status = '<p>' . t('The cacert.pem file exists and is readable.') . '</p>';
+  }
+  else {
+    backdrop_set_message(t('The cacert.pem file does not exist or is not readable.'), 'error');
+  }
+
+  $form['report'] = array(
+    '#type' => 'markup',
+    '#markup' => '<div>' . $message . $status . '</div>',
+  );
+  $form['actions']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Fetch latest version'),
+    '#submit' => array('cafilefetcher_submit'),
+  );
+  return $form;
+}
+
+/**
+ * Custom submit callback.
+ */
+function cafilefetcher_submit($form, &$form_state) {
+  cafilefetcher_fetch(FALSE);
+}
+
+/**
+ * Helper function to download the cafile.
+ *
+ * @param bool $verify
+ *   Whether to verify the certificate or not.
+ */
+function cafilefetcher_fetch($verify = TRUE) {
+  $url = 'https://curl.se/ca/cacert.pem';
+  $destination = 'public://cafilefetcher';
+  $stream_context = NULL;
+
+  if (!$verify) {
+    $stream_context = stream_context_create(array(
+      'ssl' => array(
+        'verify_peer' => FALSE,
+      ),
+    ));
+  }
+  file_prepare_directory($destination, FILE_CREATE_DIRECTORY);
+  $cafile = file_get_contents($url, FALSE, $stream_context);
+  $path = file_unmanaged_save_data($cafile, $destination . '/cacert.pem', FILE_EXISTS_REPLACE);
+  if ($path) {
+    // Additionally get the ETag. We can not use a stream context to set an
+    // If-Modified-Since header, because then the context would not be NULL and
+    // the default settings are not used anymore.
+    $headers = get_headers($url, TRUE, $stream_context);
+    state_set('cafilefetcher_checked', REQUEST_TIME);
+    state_set('cafilefetcher_etag', $headers['ETag']);
+  }
+}
+
+/**
+ * Implements hook_cron().
+ */
+function cafilefetcher_cron() {
+  $last_checked = state_get('cafilefetcher_checked');
+  $one_week = 7 * 24 * 3600;
+  $url = 'https://curl.se/ca/cacert.pem';
+
+  if (is_numeric($last_checked) && $last_checked < time() + $one_week) {
+    return;
+  }
+  if ($etag = state_get('cafilefetcher_etag')) {
+    $headers = get_headers($url, TRUE);
+    // CAFile did not change.
+    if ($etag == $headers['ETag']) {
+      return;
+    }
+  }
+
+  cafilefetcher_fetch(TRUE);
+}

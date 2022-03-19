@@ -1,0 +1,4 @@
+name = CAFile Fetcher
+description = Downloads a recent CAFile to allow proper certificate verification on outdated systems.
+type = module
+backdrop = 1.x

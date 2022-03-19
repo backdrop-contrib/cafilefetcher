@@ -1,0 +1,23 @@
+<?php
+/**
+ * @file
+ * Install and uninstall hooks for CAFile Fetcher.
+ */
+
+/**
+ * Implements hook_install().
+ */
+function cafilefetcher_install() {
+  // Fetch the file and write states.
+  cafilefetcher_fetch(FALSE);
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function cafilefetcher_uninstall() {
+  // Remove the file and states.
+  file_unmanaged_delete_recursive('public://cafilefetcher');
+  state_del('cafilefetcher_checked');
+  state_del('cafilefetcher_etag');
+}
