@@ -102,9 +102,7 @@ function cafilefetcher_fetch($verify = TRUE) {
   $cafile = file_get_contents($url, FALSE, $stream_context);
   $path = file_unmanaged_save_data($cafile, $destination . '/cacert.pem', FILE_EXISTS_REPLACE);
   if ($path) {
-    // Additionally get the ETag. We can not use a stream context to set an
-    // If-Modified-Since header, because then the context would not be NULL and
-    // the default settings are not used anymore.
+    // Additionally get the ETag.
     $headers = get_headers($url, TRUE, $stream_context);
     state_set('cafilefetcher_checked', REQUEST_TIME);
     state_set('cafilefetcher_etag', $headers['ETag']);

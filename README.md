@@ -1,6 +1,6 @@
 # CAFile Fetcher
 
-**In an ideal world, this module wouldn't exists.**
+**In an ideal world, this module wouldn't exist.**
 
 You only need it if the server your site is running on doesn't get updated
 regularly, and the ca-certificate package on that server is outdated.
