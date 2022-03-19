@@ -117,7 +117,7 @@ function cafilefetcher_cron() {
   $one_week = 7 * 24 * 3600;
   $url = 'https://curl.se/ca/cacert.pem';
 
-  if (is_numeric($last_checked) && $last_checked < time() + $one_week) {
+  if (is_numeric($last_checked) && $last_checked < time() - $one_week) {
     return;
   }
   if ($etag = state_get('cafilefetcher_etag')) {
