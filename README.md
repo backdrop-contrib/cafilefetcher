@@ -28,6 +28,12 @@ should update it as soon as possible.
 Install this module using the
  [official Backdrop CMS instructions](https://docs.backdropcms.org/documentation/extend-with-modules).
 
+When the module gets enabled, it automatically downloads a recent version of
+the certificate authority bundle to use for certificate verification.
+After that the file gets updated via cron runs, whenever a newer version is
+available. So if you have set up cron properly, you never have to care about
+that anymore. But you can also download it manually on the module's admin page.
+
 ## Issues
 
 Bugs and feature requests should be reported in the
@@ -35,7 +41,7 @@ Bugs and feature requests should be reported in the
 
 ## Current maintainers
 
-* [Indigoxela](https://github.com/indigoxela)
+- [Indigoxela](https://github.com/indigoxela)
 
 ## Credits
 
