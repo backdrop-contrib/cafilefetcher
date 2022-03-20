@@ -103,12 +103,8 @@ function cafilefetcher_troubleshoot_form($form, &$form_state) {
   $form = array();
   $no_cron = config_get('cafilefetcher.settings', 'no_cron');
 
-  $status = '';
-  $file = 'public://cafilefetcher/cacert.pem';
-  $readable = is_readable($file);
-
   $explain = t('If you encounter problems with automatic file download it might be that curl.se blocks requests from your server.');
-  $explain .= '<br>' . t('In this case you should: 1. disable the fetch cron job, 2. upload the file directly');
+  $explain .= '<br>' . t('In this case you should: 1. disable the fetch cron job, 2. upload the file directly.');
   $explain .= '<br>' . t('You can download the cacert.pem file from <a href="!link">this curl.se page</a>', array(
     '!link' => 'https://curl.se/docs/caextract.html',
   ));
