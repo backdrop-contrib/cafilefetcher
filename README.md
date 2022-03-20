@@ -38,6 +38,13 @@ After that the file gets updated via cron runs, whenever a newer version is
 available. So if you have set up cron properly, you never have to care about
 that anymore. But you can also download it manually on the module's admin page.
 
+### Troubleshoot
+
+In rare cases it might be that your webserver isn't able to directly fetch
+the cacert.pem file. In this case you can disable the cron fetch job and
+upload the file manually on the "Troubleshoot" admin page
+(/admin/config/system/cafile/troubleshoot).
+
 ## Issues
 
 Bugs and feature requests should be reported in the
