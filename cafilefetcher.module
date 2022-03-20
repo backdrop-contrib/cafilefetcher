@@ -14,6 +14,17 @@ function cafilefetcher_menu() {
     'page arguments' => array('cafilefetcher_form'),
     'access arguments' => array('administer site configuration'),
   );
+  $items['admin/config/system/cafile/status'] = array(
+    'title' => 'Status',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+  );
+  $items['admin/config/system/cafile/troubleshoot'] = array(
+    'title' => 'Troubleshoot',
+    'page callback' => 'backdrop_get_form',
+    'page arguments' => array('cafilefetcher_troubleshoot_form'),
+    'access arguments' => array('administer site configuration'),
+    'type' => MENU_LOCAL_TASK,
+  );
   return $items;
 }
 
@@ -40,50 +51,128 @@ function cafilefetcher_init() {
  */
 function cafilefetcher_form($form, &$form_state) {
   $form = array();
-
+  $no_cron = config_get('cafilefetcher.settings', 'no_cron');
   $status = '';
   $file = 'public://cafilefetcher/cacert.pem';
-  $readable = is_readable($file);
-  $filesize = filesize($file);
-  if ($readable && $filesize > 100000) {
-    $status = '<p>' . t('The cacert.pem file exists and is readable.') . '</p>';
+
+  if (is_readable($file)) {
+    $filesize = filesize($file);
+    $mtime = filemtime($file);
+    $items = array();
+    $items['items'][] = t('The cacert.pem file exists and is readable.');
+    $items['items'][] = t('The file size is !filesize.', array(
+      '!filesize' => format_size($filesize),
+    ));
+    $items['items'][] = t('The file has been changed last time on !mtime.', array(
+      '!mtime' => format_date($mtime),
+    ));
+    if ($no_cron) {
+      $items['items'][] = t('Fetching updates for cacert.pem via cron has been disabled.');
+    }
+    else {
+      $cron_checked = state_get('cafilefetcher_checked');
+      $items['items'][] = t('The last attempt to check and possibly update automatically was on !date.', array(
+        '!date' => format_date($cron_checked),
+      ));
+    }
+    $status = theme('item_list', $items);
   }
   else {
     backdrop_set_message(t('The cacert.pem file does not exist or is not readable.'), 'error');
   }
 
-  $timestamp = state_get('cafilefetcher_checked');
-  $date = t('never');
-  if ($timestamp) {
-    $date = format_date($timestamp);
-  }
-  $message = t('Last time the file has been checked or updated: @date', array(
-    '@date' => $date,
-  ));
-
-  $form['report'] = array(
-    '#type' => 'markup',
-    '#markup' => '<div>' . $status . $message . '</div>',
+  $form['default'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Status and manual fetch'),
+    '#description' => $status,
   );
-  $form['help'] = array(
-    '#type' => 'markup',
-    '#markup' => '<p>' . t('The file does not change very often, see the revision on the source page on <a href="!link">curl.se</a>.', array(
-      '!link' => 'https://curl.se/docs/caextract.html',
-    )) . '</p>',
-  );
-  $form['actions']['submit'] = array(
+  $form['default']['actions']['submit'] = array(
     '#type' => 'submit',
     '#value' => t('Fetch latest version'),
     '#submit' => array('cafilefetcher_submit'),
+    '#prefix' => t('Fetch a fresh copy of cacert.pem. Usually this should not be necessary.') . '<br>',
   );
+
   return $form;
 }
 
 /**
- * Custom submit callback.
+ * Troubleshoot form callback.
+ */
+function cafilefetcher_troubleshoot_form($form, &$form_state) {
+  $form = array();
+  $no_cron = config_get('cafilefetcher.settings', 'no_cron');
+
+  $status = '';
+  $file = 'public://cafilefetcher/cacert.pem';
+  $readable = is_readable($file);
+
+  $explain = t('If you encounter problems with automatic file download it might be that curl.se blocks requests from your server.');
+  $explain .= '<br>' . t('In this case you should: 1. disable the fetch cron job, 2. upload the file directly');
+  $explain .= '<br>' . t('You can download the cacert.pem file from <a href="!link">this curl.se page</a>', array(
+    '!link' => 'https://curl.se/docs/caextract.html',
+  ));
+  $form['troubleshoot'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Workaround fetch problems'),
+    '#description' => $explain,
+  );
+  $form['troubleshoot']['no_cron'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Disable update via cron'),
+    '#default_value' => $no_cron,
+  );
+  $form['troubleshoot']['upload'] = array(
+    '#type' => 'file',
+    '#title' => t('Manual upload'),
+  );
+  $form['troubleshoot']['actions']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+    '#submit' => array('cafilefetcher_troubleshoot_submit'),
+  );
+  $form['#validate'] = array('cafilefetcher_troubleshoot_validate');
+
+  return $form;
+}
+
+/**
+ * Custom submit callback for the main form.
  */
 function cafilefetcher_submit($form, &$form_state) {
   cafilefetcher_fetch(FALSE);
+}
+
+/**
+ * Custom validation callback fo the troubleshoot form.
+ */
+function cafilefetcher_troubleshoot_validate($form, &$form_state) {
+  if (empty($_FILES['files']['tmp_name']['upload'])) {
+    // No upload, nothing to validate.
+    return;
+  }
+  if ($_FILES['files']['name']['upload'] != 'cacert.pem') {
+    form_set_error('upload', t('Wrong file name, expected name is "cacert.pem".'));
+  }
+  if ($_FILES['files']['size']['upload'] < 100000) {
+    form_set_error('upload', t('Wrong file size, this file is too small to actually contain all CA certificates.'));
+  }
+}
+
+/**
+ * Custom submission callback for the troubleshoot form.
+ */
+function cafilefetcher_troubleshoot_submit($form, &$form_state) {
+  $messages = array();
+  if (!empty($_FILES['files']['tmp_name']['upload'])) {
+    $cafile = file_get_contents($_FILES['files']['tmp_name']['upload']);
+    $path = file_unmanaged_save_data($cafile, 'public://cafilefetcher/cacert.pem', FILE_EXISTS_REPLACE);
+    if ($path) {
+      backdrop_set_message(t('The file has been uploaded.'), 'status');
+    }
+  }
+  config_set('cafilefetcher.settings', 'no_cron', $form_state['values']['no_cron']);
+  backdrop_set_message(t('The configuration has been saved.'), 'status');
 }
 
 /**
@@ -119,6 +208,11 @@ function cafilefetcher_fetch($verify = TRUE) {
  * Implements hook_cron().
  */
 function cafilefetcher_cron() {
+  $no_cron = config_get('cafilefetcher.settings', 'no_cron');
+  if ($no_cron) {
+    return;
+  }
+
   $last_checked = state_get('cafilefetcher_checked');
   $one_week = 7 * 24 * 3600;
   $url = 'https://curl.se/ca/cacert.pem';
@@ -135,4 +229,15 @@ function cafilefetcher_cron() {
   }
 
   cafilefetcher_fetch(TRUE);
+}
+
+/**
+ * Implements hook_config_info().
+ */
+function cafilefetcher_config_info() {
+  $prefixes['cafilefetcher.settings'] = array(
+    'label' => t('CAFile Fetcher settings'),
+    'group' => t('Configuration'),
+  );
+  return $prefixes;
 }
