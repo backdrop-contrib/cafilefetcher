@@ -78,7 +78,7 @@ function cafilefetcher_form($form, &$form_state) {
     $status = theme('item_list', $items);
   }
   else {
-    backdrop_set_message(t('The cacert.pem file does not exist or is not readable.'), 'error');
+    backdrop_set_message(t('The cacert.pem file does not exist or is not readable.'), 'error', FALSE);
   }
 
   $form['default'] = array(
@@ -190,13 +190,27 @@ function cafilefetcher_fetch($verify = TRUE) {
     ));
   }
   file_prepare_directory($destination, FILE_CREATE_DIRECTORY);
-  $cafile = file_get_contents($url, FALSE, $stream_context);
+
+  $cafile = @file_get_contents($url, FALSE, $stream_context);
+  if (!$cafile) {
+    // Something else failed, do not save empty data, but set the state.
+    state_set('cafilefetcher_checked', REQUEST_TIME);
+    if (current_path() == 'admin/config/system/cafile') {
+      backdrop_set_message(t('Failed to directly get the cacert.pem file, find additional information on the <a href="!url">Troubleshoot page</a>.', array(
+        '!url' => url('admin/config/system/cafile/troubleshoot'),
+      )), 'error');
+    }
+    return;
+  }
   $path = file_unmanaged_save_data($cafile, $destination . '/cacert.pem', FILE_EXISTS_REPLACE);
   if ($path) {
     // Additionally get the ETag.
     $headers = get_headers($url, TRUE, $stream_context);
     state_set('cafilefetcher_checked', REQUEST_TIME);
     state_set('cafilefetcher_etag', $headers['ETag']);
+    if (current_path() == 'admin/config/system/cafile') {
+      backdrop_set_message(t('Downloaded a fresh version of the cacert.pem file.'), 'status');
+    }
   }
 }
 
